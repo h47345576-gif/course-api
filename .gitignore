@@ -1,0 +1,16 @@
+# Ignore sensitive files
+PROJECT_REPORT.md
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Wrangler
+.wrangler/
+
+# Environment files
+.env
+.env.local
+.dev.vars
