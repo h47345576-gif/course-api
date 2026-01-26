@@ -9,10 +9,10 @@ database_name = "courses_db"
 # IMPORTANT: Run 'wrangler d1 create courses_db' and replace the ID below
 database_id = "37ec7ede-be15-42ac-b8d7-0c9612d7cce4"
 
-# R2 Bucket Binding
-[[r2_buckets]]
-binding = "STORAGE"
-bucket_name = "course-files"
+# R2 Bucket Binding (uncomment when you create the bucket)
+# [[r2_buckets]]
+# binding = "STORAGE"
+# bucket_name = "course-files"
 
 # KV Namespace Binding
 [[kv_namespaces]]
