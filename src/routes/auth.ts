@@ -26,7 +26,7 @@ auth.post('/register', async (c) => {
     // Insert user
     const result = await c.env.DB.prepare(
         'INSERT INTO users (name, email, password_hash, phone) VALUES (?, ?, ?, ?)'
-    ).bind(name, email, passwordHash, phone).run();
+    ).bind(name, email, passwordHash, phone || null).run();
 
     if (!result.success) {
         return c.json({ error: 'Database Error', message: 'Failed to create user' }, 500);
@@ -65,7 +65,20 @@ auth.post('/login', async (c) => {
         return c.json({ error: 'Unauthorized', message: 'Invalid credentials' }, 401);
     }
 
-    const token = await sign({ id: user.id, email: user.email }, c.env.JWT_SECRET);
+    // Determine role (Temporary logic until DB migration)
+    let role = 'student';
+    if (user.email.includes('admin')) {
+        role = 'admin';
+    } else if (user.email.includes('teacher')) {
+        role = 'teacher';
+    }
+
+    // Also check if DB has role column (future proofing)
+    if (user.role) {
+        role = user.role;
+    }
+
+    const token = await sign({ id: user.id, email: user.email, role }, c.env.JWT_SECRET);
 
     return c.json({
         status: 'success',
@@ -75,7 +88,8 @@ auth.post('/login', async (c) => {
             name: user.name,
             email: user.email,
             phone: user.phone,
-            avatar_url: user.avatar_url
+            avatar_url: user.avatar_url,
+            role: role
         }
     });
 });

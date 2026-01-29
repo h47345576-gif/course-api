@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     phone TEXT,
     avatar_url TEXT,
     google_id TEXT,
+    role TEXT DEFAULT 'student', -- student, teacher, admin
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
