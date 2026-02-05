@@ -3,7 +3,16 @@ import { sign } from '../utils/jwt';
 import { authMiddleware } from '../middleware/auth';
 import * as bcrypt from 'bcryptjs';
 
-const auth = new Hono<{ Bindings: any }>();
+type Variables = {
+    user: {
+        id: string | number;
+        role: string;
+        name: string;
+        [key: string]: any;
+    };
+};
+
+const auth = new Hono<{ Bindings: any; Variables: Variables }>();
 
 // Register
 auth.post('/register', async (c) => {

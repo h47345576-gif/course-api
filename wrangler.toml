@@ -9,10 +9,10 @@ database_name = "courses_db"
 # IMPORTANT: Run 'wrangler d1 create courses_db' and replace the ID below
 database_id = "37ec7ede-be15-42ac-b8d7-0c9612d7cce4"
 
-# R2 Bucket Binding (uncomment when you create the bucket)
+# R2 Bucket Binding (Using S3 API for cross-account access)
 # [[r2_buckets]]
 # binding = "STORAGE"
-# bucket_name = "course-files"
+# bucket_name = "pr1-assets"
 
 # KV Namespace Binding
 [[kv_namespaces]]
@@ -24,3 +24,10 @@ id = "b5ef08ea12734f9586da7690c0127e3d"
 # Environment variables (public)
 ENVIRONMENT = "dev"
 JWT_SECRET = "course-platform-secret-key-2024"
+
+# R2 Configuration (secrets should be set via wrangler secret put)
+R2_ACCESS_KEY_ID = "d2464e43b8a29a98322196938b1cb0c2"
+R2_SECRET_ACCESS_KEY = "74ef701e8b7dff9a2b123fbcc478d4cd42cdeeccc16d0b1d0848acbeda4016f3"
+R2_ACCOUNT_ID = "286c7f13bb8e7953094ec6a56911a578"
+R2_BUCKET_NAME = "pr1-assets"
+PUBLIC_R2_URL = "https://pub-f2c0b43b09ea4983a05bdb7998fafdf3.r2.dev"
