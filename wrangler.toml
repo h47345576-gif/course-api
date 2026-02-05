@@ -23,3 +23,4 @@ id = "b5ef08ea12734f9586da7690c0127e3d"
 [vars]
 # Environment variables (public)
 ENVIRONMENT = "dev"
+JWT_SECRET = "course-platform-secret-key-2024"

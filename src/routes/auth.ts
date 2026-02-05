@@ -36,7 +36,7 @@ auth.post('/register', async (c) => {
     const user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
 
     // Generate token
-    const token = await sign({ id: user.id, email: user.email }, c.env.JWT_SECRET);
+    const token = await sign({ id: user.id, email: user.email, name: user.name, role: 'student' }, c.env.JWT_SECRET);
 
     return c.json({
         status: 'success',
@@ -78,7 +78,7 @@ auth.post('/login', async (c) => {
         role = user.role;
     }
 
-    const token = await sign({ id: user.id, email: user.email, role }, c.env.JWT_SECRET);
+    const token = await sign({ id: user.id, email: user.email, name: user.name, role }, c.env.JWT_SECRET);
 
     return c.json({
         status: 'success',
