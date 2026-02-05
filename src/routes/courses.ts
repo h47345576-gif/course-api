@@ -67,6 +67,146 @@ courses.post('/:id/enroll', authMiddleware, async (c) => {
     return c.json({ status: 'success', message: 'Enrolled successfully' }, 201);
 });
 
+
+// Create a new course (Protected)
+courses.post('/', authMiddleware, async (c) => {
+    const user = c.get('user');
+    if (user.role !== 'teacher' && user.role !== 'admin') {
+        return c.json({ error: 'Unauthorized', message: 'Only teachers and admins can create courses' }, 403);
+    }
+
+    const body = await c.req.json();
+    const { title, description, instructor, category, thumbnail_url, price, duration_minutes, duration, can_download, requirements, extra_content } = body;
+
+    const result = await c.env.DB.prepare(
+        `INSERT INTO courses (title, description, instructor, category, thumbnail_url, price, duration_minutes, can_download, requirements, extra_content) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+        title,
+        description,
+        instructor || user.name,
+        category,
+        thumbnail_url,
+        price || 0,
+        duration_minutes || parseInt(duration) || 0,
+        can_download !== undefined ? can_download : 1,
+        requirements || '',
+        extra_content || ''
+    ).run();
+
+    return c.json({ status: 'success', id: result.meta.last_row_id }, 201);
+});
+
+// Update an existing course (Protected)
+courses.put('/:id', authMiddleware, async (c) => {
+    const id = c.req.param('id');
+    const user = c.get('user');
+
+    // Check ownership if teacher
+    const course = await c.env.DB.prepare('SELECT instructor FROM courses WHERE id = ?').bind(id).first();
+    if (!course) return c.json({ error: 'Not Found' }, 404);
+
+    if (user.role !== 'admin' && course.instructor !== user.name) {
+        return c.json({ error: 'Unauthorized' }, 403);
+    }
+
+    const body = await c.req.json();
+
+    // Normalize data: map frontend 'duration' to 'duration_minutes' if exists
+    if (body.duration !== undefined && body.duration_minutes === undefined) {
+        body.duration_minutes = parseInt(body.duration) || 0;
+        delete body.duration;
+    }
+
+    const updates = Object.keys(body).map(key => `${key} = ?`).join(', ');
+    const values = Object.values(body);
+
+    await c.env.DB.prepare(
+        `UPDATE courses SET ${updates} WHERE id = ?`
+    ).bind(...values, id).run();
+
+    return c.json({ status: 'success', message: 'Course updated' });
+});
+
+// Delete a course (Protected)
+courses.delete('/:id', authMiddleware, async (c) => {
+    const id = c.req.param('id');
+    const user = c.get('user');
+
+    // Check ownership
+    const course = await c.env.DB.prepare('SELECT instructor FROM courses WHERE id = ?').bind(id).first();
+    if (!course) return c.json({ error: 'Not Found' }, 404);
+
+    if (user.role !== 'admin' && course.instructor !== user.name) {
+        return c.json({ error: 'Unauthorized' }, 403);
+    }
+
+    await c.env.DB.prepare('DELETE FROM courses WHERE id = ?').bind(id).run();
+    return c.json({ status: 'success', message: 'Course and related content deleted' });
+});
+
+// --- Lessons Management ---
+
+// Add lesson to course
+courses.post('/:id/lessons', authMiddleware, async (c) => {
+    const courseId = c.req.param('id');
+    const user = c.get('user');
+
+    const course = await c.env.DB.prepare('SELECT instructor FROM courses WHERE id = ?').bind(courseId).first();
+    if (!course) return c.json({ error: 'Not Found' }, 404);
+    if (user.role !== 'admin' && course.instructor !== user.name) return c.json({ error: 'Unauthorized' }, 403);
+
+    const body = await c.req.json();
+    const { title, description, type, content_url, duration_seconds, order_num, text_content } = body;
+
+    const result = await c.env.DB.prepare(
+        `INSERT INTO lessons (course_id, title, description, type, content_url, duration_seconds, order_num, text_content) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(courseId, title, description, type || 'video', content_url, duration_seconds || 0, order_num || 0, text_content).run();
+
+    return c.json({ status: 'success', id: result.meta.last_row_id }, 201);
+});
+
+// Update lesson
+courses.put('/lessons/:lessonId', authMiddleware, async (c) => {
+    const lessonId = c.req.param('lessonId');
+    const user = c.get('user');
+
+    // Find course instructor for this lesson
+    const lesson = await c.env.DB.prepare(
+        'SELECT c.instructor FROM courses c JOIN lessons l ON l.course_id = c.id WHERE l.id = ?'
+    ).bind(lessonId).first();
+
+    if (!lesson) return c.json({ error: 'Not Found' }, 404);
+    if (user.role !== 'admin' && lesson.instructor !== user.name) return c.json({ error: 'Unauthorized' }, 403);
+
+    const body = await c.req.json();
+    const updates = Object.keys(body).map(key => `${key} = ?`).join(', ');
+    const values = Object.values(body);
+
+    await c.env.DB.prepare(
+        `UPDATE lessons SET ${updates} WHERE id = ?`
+    ).bind(...values, lessonId).run();
+
+    return c.json({ status: 'success', message: 'Lesson updated' });
+});
+
+// Delete lesson
+courses.delete('/lessons/:lessonId', authMiddleware, async (c) => {
+    const lessonId = c.req.param('lessonId');
+    const user = c.get('user');
+
+    const lesson = await c.env.DB.prepare(
+        'SELECT c.instructor FROM courses c JOIN lessons l ON l.course_id = c.id WHERE l.id = ?'
+    ).bind(lessonId).first();
+
+    if (!lesson) return c.json({ error: 'Not Found' }, 404);
+    if (user.role !== 'admin' && lesson.instructor !== user.name) return c.json({ error: 'Unauthorized' }, 403);
+
+    await c.env.DB.prepare('DELETE FROM lessons WHERE id = ?').bind(lessonId).run();
+    return c.json({ status: 'success', message: 'Lesson deleted' });
+});
+
 // Temporary Seed Endpoint
 courses.post('/seed', async (c) => {
     try {

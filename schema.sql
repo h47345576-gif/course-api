@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS courses (
     type TEXT DEFAULT 'mixed', -- video, text, pdf, mixed
     duration_minutes INTEGER DEFAULT 0,
     can_download BOOLEAN DEFAULT 1,
+    requirements TEXT,
+    extra_content TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
