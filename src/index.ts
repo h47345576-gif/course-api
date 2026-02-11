@@ -14,10 +14,10 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 // Global Middleware
 app.use('*', cors({
-    origin: '*',
+    origin: (origin) => origin || '*',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
-    exposeHeaders: ['Content-Length'],
+    allowHeaders: ['Content-Type', 'Authorization', 'Upgrade-Insecure-Requests'],
+    exposeHeaders: ['Content-Length', 'X-Kuma-Revision'],
     maxAge: 600,
     credentials: true,
 }));

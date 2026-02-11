@@ -83,6 +83,67 @@ courses.post('/upload', authMiddleware, async (c) => {
     }
 });
 
+// Generate R2 Presigned URL for Video Upload (Teacher/Admin)
+courses.post('/upload-url', authMiddleware, async (c) => {
+    const user = c.get('user');
+    if (user.role !== 'teacher' && user.role !== 'admin') {
+        return c.json({ error: 'Unauthorized' }, 403);
+    }
+
+    try {
+        const body = await c.req.json();
+        const { fileName, fileType } = body;
+
+        if (!fileName || !fileType) {
+            return c.json({ error: 'Missing fileName or fileType' }, 400);
+        }
+
+        if (!fileType.startsWith('video/')) {
+            return c.json({ error: 'Invalid file type. Only videos are allowed.' }, 400);
+        }
+
+        const extension = fileName.split('.').pop();
+        const randomName = `videos/${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
+
+        const R2_ACCOUNT_ID = c.env.R2_ACCOUNT_ID;
+        const R2_ACCESS_KEY_ID = c.env.R2_ACCESS_KEY_ID;
+        const R2_SECRET_ACCESS_KEY = c.env.R2_SECRET_ACCESS_KEY;
+        const R2_BUCKET_NAME = c.env.R2_BUCKET_NAME;
+        const PUBLIC_R2_URL = c.env.PUBLIC_R2_URL;
+
+        if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ACCOUNT_ID || !R2_BUCKET_NAME) {
+            return c.json({ error: 'Server configuration error: Missing R2 keys' }, 500);
+        }
+
+        const r2 = new AwsClient({
+            accessKeyId: R2_ACCESS_KEY_ID,
+            secretAccessKey: R2_SECRET_ACCESS_KEY,
+            service: 's3',
+            region: 'auto',
+        });
+
+        const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${randomName}`;
+
+        // Generate signed Request with aws4fetch, enabling query params
+        const signedRequest = await r2.sign(endpoint, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': fileType
+            },
+            aws: { signQuery: true }
+        });
+
+        return c.json({
+            status: 'success',
+            uploadUrl: signedRequest.url,
+            publicUrl: `${PUBLIC_R2_URL}/${randomName}`
+        });
+
+    } catch (e: any) {
+        return c.json({ error: 'Failed to generate upload URL', details: e.message }, 500);
+    }
+});
+
 // Temporary Seed Endpoint - MUST be defined before /:id
 courses.post('/seed', async (c) => {
     try {
@@ -273,7 +334,7 @@ courses.post('/:id/lessons', authMiddleware, async (c) => {
     const result = await c.env.DB.prepare(
         `INSERT INTO lessons (course_id, title, description, type, content_url, duration_seconds, order_num, text_content) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(courseId, title, description, type || 'video', content_url, duration_seconds || 0, order_num || 0, text_content).run();
+    ).bind(courseId, title, description || null, type || 'video', content_url, duration_seconds || 0, order_num || 0, text_content || null).run();
 
     return c.json({ status: 'success', id: result.meta.last_row_id }, 201);
 });

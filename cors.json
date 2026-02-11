@@ -1,0 +1,24 @@
+[
+    {
+        "AllowedOrigins": [
+            "http://localhost:*",
+            "https://*.pages.dev",
+            "https://course-websit.pages.dev",
+            "*"
+        ],
+        "AllowedMethods": [
+            "GET",
+            "PUT",
+            "HEAD",
+            "POST",
+            "DELETE"
+        ],
+        "AllowedHeaders": [
+            "*"
+        ],
+        "ExposeHeaders": [
+            "ETag"
+        ],
+        "MaxAgeSeconds": 3000
+    }
+]

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS lessons (
     has_source_files BOOLEAN DEFAULT 0,
     source_files_url TEXT,
     text_content TEXT,
+    is_free BOOLEAN DEFAULT 0,
     FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 );
 
