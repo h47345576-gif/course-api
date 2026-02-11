@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS courses (
     category TEXT,
     thumbnail_url TEXT,
     price REAL DEFAULT 0,
+    original_price REAL DEFAULT 0,
+    discount_percentage REAL DEFAULT 0,
     type TEXT DEFAULT 'mixed', -- video, text, pdf, mixed
     duration_minutes INTEGER DEFAULT 0,
     can_download BOOLEAN DEFAULT 1,

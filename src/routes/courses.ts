@@ -248,11 +248,11 @@ courses.post('/', authMiddleware, async (c) => {
     }
 
     const body = await c.req.json();
-    const { title, description, instructor, category, thumbnail_url, price, duration_minutes, duration, can_download, requirements, extra_content } = body;
+    const { title, description, instructor, category, thumbnail_url, price, original_price, discount_percentage, duration_minutes, duration, can_download, requirements, extra_content } = body;
 
     const result = await c.env.DB.prepare(
-        `INSERT INTO courses (title, description, instructor, category, thumbnail_url, price, duration_minutes, can_download, requirements, extra_content) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO courses (title, description, instructor, category, thumbnail_url, price, original_price, discount_percentage, duration_minutes, can_download, requirements, extra_content) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
         title,
         description,
@@ -260,6 +260,8 @@ courses.post('/', authMiddleware, async (c) => {
         category,
         thumbnail_url,
         price || 0,
+        original_price || 0,
+        discount_percentage || 0,
         duration_minutes || parseInt(duration) || 0,
         can_download !== undefined ? can_download : 1,
         requirements || '',
