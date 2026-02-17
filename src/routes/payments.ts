@@ -13,6 +13,48 @@ type Variables = {
 
 const app = new Hono<{ Bindings: any; Variables: Variables }>();
 
+// GET /api/v1/payments - Admin: Get all payments with details
+app.get('/', authMiddleware, async (c) => {
+    const user = c.get('user');
+
+    if (user.role !== 'admin') {
+        return c.json({ message: 'Unauthorized - Admin access required' }, 403);
+    }
+
+    try {
+        const status = c.req.query('status') || '';
+        let query = `
+            SELECT p.*, 
+                   u.name as student_name, u.email as student_email,
+                   c.title as course_title, c.price as course_price, c.thumbnail_url as course_thumbnail
+            FROM payments p
+            LEFT JOIN users u ON p.user_id = u.id
+            LEFT JOIN courses c ON p.course_id = c.id
+        `;
+
+        const bindings: any[] = [];
+        if (status) {
+            query += ` WHERE p.status = ?`;
+            bindings.push(status);
+        }
+
+        query += ` ORDER BY p.created_at DESC`;
+
+        const stmt = bindings.length > 0
+            ? c.env.DB.prepare(query).bind(...bindings)
+            : c.env.DB.prepare(query);
+
+        const payments = await stmt.all();
+
+        return c.json({
+            results: payments.results || []
+        });
+    } catch (error: any) {
+        console.error('Admin get payments error:', error);
+        return c.json({ message: error.message || 'Failed to fetch payments' }, 500);
+    }
+});
+
 // POST /api/v1/payments - Submit payment for a course
 app.post('/', authMiddleware, async (c) => {
     const { course_id, method, amount, notes } = await c.req.json();
