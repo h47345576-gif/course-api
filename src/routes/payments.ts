@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
+import { AwsClient } from 'aws4fetch';
 
 type Variables = {
     user: {
@@ -14,10 +15,10 @@ const app = new Hono<{ Bindings: any; Variables: Variables }>();
 
 // POST /api/v1/payments - Submit payment for a course
 app.post('/', authMiddleware, async (c) => {
-    const { course_id, payment_method, amount, notes } = await c.req.json();
+    const { course_id, method, amount, notes } = await c.req.json();
     const user = c.get('user');
 
-    if (!course_id || !payment_method || !amount) {
+    if (!course_id || !method || !amount) {
         return c.json({ message: 'Missing required fields' }, 400);
     }
 
@@ -44,7 +45,7 @@ app.post('/', authMiddleware, async (c) => {
         const result = await c.env.DB.prepare(
             `INSERT INTO payments (user_id, course_id, amount, method, status, notes, created_at)
              VALUES (?, ?, ?, ?, 'pending', ?, datetime('now'))`
-        ).bind(user.id, course_id, amount, payment_method, notes || null).run();
+        ).bind(user.id, course_id, amount, method, notes || null).run();
 
         return c.json({
             message: 'Payment submitted successfully',
@@ -85,30 +86,37 @@ app.post('/:id/receipt', authMiddleware, async (c) => {
 
         // Upload to R2
         const fileName = `receipts/${user.id}/${paymentId}_${Date.now()}_${file.name}`;
-        const arrayBuffer = await file.arrayBuffer();
 
-        // Use S3 API to upload to R2
-        const R2_ACCOUNT_ID = c.env.R2_ACCOUNT_ID || '';
+        // R2 Configuration
+        const R2_ACCOUNT_ID = c.env.R2_ACCOUNT_ID;
+        const R2_ACCESS_KEY_ID = c.env.R2_ACCESS_KEY_ID;
+        const R2_SECRET_ACCESS_KEY = c.env.R2_SECRET_ACCESS_KEY;
         const R2_BUCKET_NAME = c.env.R2_BUCKET_NAME || 'pr1-assets';
-        const R2_ACCESS_KEY_ID = c.env.R2_ACCESS_KEY_ID || '';
-        const R2_SECRET_ACCESS_KEY = c.env.R2_SECRET_ACCESS_KEY || '';
 
-        // Create AWS Signature V4
-        const region = 'auto';
-        const service = 's3';
-        const host = `${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-        const endpoint = `https://${host}/${R2_BUCKET_NAME}/${fileName}`;
+        if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ACCOUNT_ID || !R2_BUCKET_NAME) {
+            return c.json({ message: 'Server configuration error: Missing R2 keys' }, 500);
+        }
 
-        const uploadResponse = await fetch(endpoint, {
+        const r2 = new AwsClient({
+            accessKeyId: R2_ACCESS_KEY_ID,
+            secretAccessKey: R2_SECRET_ACCESS_KEY,
+            service: 's3',
+            region: 'auto',
+        });
+
+        const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${fileName}`;
+
+        const uploadResponse = await r2.fetch(endpoint, {
             method: 'PUT',
             headers: {
                 'Content-Type': file.type,
             },
-            body: arrayBuffer,
+            body: file.stream(),
         });
 
         if (!uploadResponse.ok) {
-            console.error('R2 Upload failed:', await uploadResponse.text());
+            const errorText = await uploadResponse.text();
+            console.error('R2 Upload failed:', errorText);
             return c.json({ message: 'Failed to upload receipt' }, 500);
         }
 
@@ -120,6 +128,37 @@ app.post('/:id/receipt', authMiddleware, async (c) => {
         await c.env.DB.prepare(
             'UPDATE payments SET receipt_image_url = ? WHERE id = ?'
         ).bind(receiptUrl, paymentId).run();
+
+        // Create admin notification
+        try {
+            const paymentInfo = await c.env.DB.prepare(
+                `SELECT p.course_id, c.title as course_title
+                 FROM payments p
+                 LEFT JOIN courses c ON p.course_id = c.id
+                 WHERE p.id = ?`
+            ).bind(paymentId).first();
+
+            const courseName = paymentInfo?.course_title || 'كورس غير معروف';
+            const studentName = user.name || 'طالب';
+
+            await c.env.DB.prepare(
+                `INSERT INTO notifications (type, title, message, data, created_at)
+                 VALUES (?, ?, ?, ?, datetime('now'))`
+            ).bind(
+                'receipt_uploaded',
+                'إيصال دفع جديد',
+                `قام ${studentName} برفع إيصال دفع للكورس "${courseName}"`,
+                JSON.stringify({
+                    payment_id: paymentId,
+                    user_id: user.id,
+                    user_name: studentName,
+                    course_title: courseName,
+                    receipt_url: receiptUrl
+                })
+            ).run();
+        } catch (notifError) {
+            console.error('Failed to create notification:', notifError);
+        }
 
         return c.json({
             message: 'Receipt uploaded successfully',
