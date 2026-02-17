@@ -79,8 +79,17 @@ app.post('/', authMiddleware, async (c) => {
             'SELECT id, status FROM payments WHERE user_id = ? AND course_id = ?'
         ).bind(user.id, course_id).first();
 
-        if (existingPayment && existingPayment.status === 'confirmed') {
-            return c.json({ message: 'You have already paid for this course' }, 400);
+        if (existingPayment) {
+            if (existingPayment.status === 'confirmed') {
+                return c.json({ message: 'You have already paid for this course' }, 400);
+            }
+            if (existingPayment.status === 'pending') {
+                return c.json({ 
+                    message: 'You have a pending payment for this course',
+                    payment_id: existingPayment.id,
+                    status: 'pending'
+                }, 200);
+            }
         }
 
         // Create payment record
