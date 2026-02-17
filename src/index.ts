@@ -35,11 +35,11 @@ app.get('/', (c) => {
 // Import Routes (Placeholder for now)
 import authRoutes from './routes/auth';
 import coursesRoutes from './routes/courses';
-// import paymentsRoutes from './routes/payments';
+import paymentsRoutes from './routes/payments';
 
 app.route('/api/v1/auth', authRoutes);
 app.route('/api/v1/courses', coursesRoutes);
-// app.route('/api/v1/payments', paymentsRoutes);
+app.route('/api/v1/payments', paymentsRoutes);
 
 // Error Handling
 app.onError((err, c) => {
