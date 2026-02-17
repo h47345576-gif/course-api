@@ -37,11 +37,13 @@ import authRoutes from './routes/auth';
 import coursesRoutes from './routes/courses';
 import paymentsRoutes from './routes/payments';
 import notificationsRoutes from './routes/notifications';
+import quizzesRoutes from './routes/quizzes';
 
 app.route('/api/v1/auth', authRoutes);
 app.route('/api/v1/courses', coursesRoutes);
 app.route('/api/v1/payments', paymentsRoutes);
 app.route('/api/v1/notifications', notificationsRoutes);
+app.route('/api/v1/quizzes', quizzesRoutes);
 
 // Error Handling
 app.onError((err, c) => {
