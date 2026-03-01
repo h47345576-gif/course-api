@@ -304,7 +304,8 @@ quizzes.post('/:quizId/submit', authMiddleware, async (c) => {
             }
         }
 
-        const passed = score >= quiz.passing_score;
+        const percentage = totalPoints > 0 ? Math.round((score / totalPoints) * 100) : 0;
+        const passed = percentage >= quiz.passing_score;
 
         // Update attempt
         await c.env.DB.prepare(
@@ -315,7 +316,7 @@ quizzes.post('/:quizId/submit', authMiddleware, async (c) => {
         return c.json({
             score,
             total_points: totalPoints,
-            percentage: Math.round((score / totalPoints) * 100),
+            percentage,
             passed,
             passing_score: quiz.passing_score
         });

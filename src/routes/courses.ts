@@ -175,6 +175,161 @@ courses.post('/seed', async (c) => {
     }
 });
 
+// Check enrollment status + progress for a course (Protected)
+courses.get('/:id/enrollment-status', authMiddleware, async (c) => {
+    const courseId = c.req.param('id');
+    const user = c.get('user');
+
+    try {
+        // Check enrollment
+        const enrollment = await c.env.DB.prepare(
+            'SELECT id, progress, created_at FROM enrollments WHERE user_id = ? AND course_id = ?'
+        ).bind(user.id, courseId).first();
+
+        if (!enrollment) {
+            return c.json({ enrolled: false, progress: 0 });
+        }
+
+        // Calculate progress from lesson_progress
+        const totalLessons = await c.env.DB.prepare(
+            'SELECT COUNT(*) as count FROM lessons WHERE course_id = ?'
+        ).bind(courseId).first();
+
+        const completedLessons = await c.env.DB.prepare(
+            'SELECT COUNT(*) as count FROM lesson_progress lp JOIN lessons l ON lp.lesson_id = l.id WHERE l.course_id = ? AND lp.user_id = ? AND lp.is_completed = 1'
+        ).bind(courseId, user.id).first();
+
+        const total = (totalLessons as any)?.count || 0;
+        const completed = (completedLessons as any)?.count || 0;
+        const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        // Update enrollment progress
+        await c.env.DB.prepare(
+            'UPDATE enrollments SET progress = ? WHERE id = ?'
+        ).bind(progress, enrollment.id).run();
+
+        // Get completed lesson IDs
+        const { results: completedLessonIds } = await c.env.DB.prepare(
+            'SELECT lesson_id FROM lesson_progress WHERE user_id = ? AND is_completed = 1'
+        ).bind(user.id).all();
+
+        return c.json({
+            enrolled: true,
+            progress,
+            completed_lessons: completed,
+            total_lessons: total,
+            completed_lesson_ids: completedLessonIds.map((r: any) => r.lesson_id),
+            enrolled_at: enrollment.created_at
+        });
+    } catch (error: any) {
+        return c.json({ message: error.message || 'Failed to check enrollment status' }, 500);
+    }
+});
+
+// Get quizzes for a course (Protected)
+courses.get('/:id/quizzes', authMiddleware, async (c) => {
+    const courseId = c.req.param('id');
+    const user = c.get('user');
+
+    try {
+        // Get all quizzes for lessons in this course
+        const { results: quizzes } = await c.env.DB.prepare(
+            `SELECT q.id, q.lesson_id, q.title, q.description, q.time_limit_minutes, q.passing_score, q.max_attempts,
+                    (SELECT COUNT(*) FROM questions WHERE quiz_id = q.id) as question_count
+             FROM quizzes q
+             JOIN lessons l ON q.lesson_id = l.id
+             WHERE l.course_id = ?
+             ORDER BY l.order_num ASC`
+        ).bind(courseId).all();
+
+        // Get user's quiz attempts
+        const { results: attempts } = await c.env.DB.prepare(
+            `SELECT qa.quiz_id, qa.score, qa.total_points, qa.passed, qa.completed_at
+             FROM quiz_attempts qa
+             JOIN quizzes q ON qa.quiz_id = q.id
+             JOIN lessons l ON q.lesson_id = l.id
+             WHERE l.course_id = ? AND qa.user_id = ?
+             ORDER BY qa.completed_at DESC`
+        ).bind(courseId, user.id).all();
+
+        // Map attempts to quizzes
+        const quizzesWithAttempts = quizzes.map((quiz: any) => {
+            const quizAttempts = attempts.filter((a: any) => a.quiz_id === quiz.id);
+            return {
+                ...quiz,
+                attempts: quizAttempts,
+                best_score: quizAttempts.length > 0 ? Math.max(...quizAttempts.map((a: any) => a.score)) : null,
+                attempts_count: quizAttempts.length
+            };
+        });
+
+        return c.json({ results: quizzesWithAttempts });
+    } catch (error: any) {
+        return c.json({ message: error.message || 'Failed to fetch quizzes' }, 500);
+    }
+});
+
+// Mark lesson as completed (Protected)
+courses.post('/lessons/:lessonId/complete', authMiddleware, async (c) => {
+    const lessonId = c.req.param('lessonId');
+    const user = c.get('user');
+
+    try {
+        // Check lesson exists and get course_id
+        const lesson = await c.env.DB.prepare(
+            'SELECT id, course_id FROM lessons WHERE id = ?'
+        ).bind(lessonId).first();
+
+        if (!lesson) {
+            return c.json({ message: 'Lesson not found' }, 404);
+        }
+
+        // Check enrollment
+        const enrollment = await c.env.DB.prepare(
+            'SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?'
+        ).bind(user.id, (lesson as any).course_id).first();
+
+        if (!enrollment) {
+            return c.json({ message: 'You must be enrolled in this course' }, 403);
+        }
+
+        // Upsert lesson progress
+        await c.env.DB.prepare(
+            `INSERT INTO lesson_progress (user_id, lesson_id, is_completed, completed_at)
+             VALUES (?, ?, 1, datetime('now'))
+             ON CONFLICT(user_id, lesson_id) DO UPDATE SET is_completed = 1, completed_at = datetime('now')`
+        ).bind(user.id, lessonId).run();
+
+        // Recalculate progress
+        const totalLessons = await c.env.DB.prepare(
+            'SELECT COUNT(*) as count FROM lessons WHERE course_id = ?'
+        ).bind((lesson as any).course_id).first();
+
+        const completedLessonsCount = await c.env.DB.prepare(
+            'SELECT COUNT(*) as count FROM lesson_progress lp JOIN lessons l ON lp.lesson_id = l.id WHERE l.course_id = ? AND lp.user_id = ? AND lp.is_completed = 1'
+        ).bind((lesson as any).course_id, user.id).first();
+
+        const total = (totalLessons as any)?.count || 0;
+        const completedCount = (completedLessonsCount as any)?.count || 0;
+        const progress = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+
+        // Update enrollment progress
+        await c.env.DB.prepare(
+            'UPDATE enrollments SET progress = ? WHERE user_id = ? AND course_id = ?'
+        ).bind(progress, user.id, (lesson as any).course_id).run();
+
+        return c.json({
+            status: 'success',
+            message: 'Lesson completed',
+            progress,
+            completed_lessons: completedCount,
+            total_lessons: total
+        });
+    } catch (error: any) {
+        return c.json({ message: error.message || 'Failed to mark lesson as completed' }, 500);
+    }
+});
+
 // List all courses
 courses.get('/', async (c) => {
     const { results } = await c.env.DB.prepare('SELECT * FROM courses ORDER BY created_at DESC').all();
