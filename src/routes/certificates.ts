@@ -247,15 +247,6 @@ certificates.post('/issue/:courseId', authMiddleware, async (c) => {
             return c.json({ error: 'Course not completed yet', progress: total > 0 ? Math.round((completed / total) * 100) : 0 }, 403);
         }
 
-        // Check if a template exists
-        const template = await c.env.DB.prepare(
-            'SELECT id FROM certificate_templates WHERE course_id = ?'
-        ).bind(courseId).first();
-
-        if (!template) {
-            return c.json({ error: 'No certificate template configured for this course' }, 404);
-        }
-
         // Generate unique certificate number
         const certNumber = `CERT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 

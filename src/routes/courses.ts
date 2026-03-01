@@ -213,13 +213,25 @@ courses.get('/:id/enrollment-status', authMiddleware, async (c) => {
             'SELECT lesson_id FROM lesson_progress WHERE user_id = ? AND is_completed = 1'
         ).bind(user.id).all();
 
+        // Check for certificate if progress is 100%
+        let certificate_number = null;
+        if (progress === 100) {
+            const certRow = await c.env.DB.prepare(
+                'SELECT certificate_number FROM certificates WHERE user_id = ? AND course_id = ?'
+            ).bind(user.id, courseId).first();
+            if (certRow) {
+                certificate_number = (certRow as any).certificate_number;
+            }
+        }
+
         return c.json({
             enrolled: true,
             progress,
             completed_lessons: completed,
             total_lessons: total,
             completed_lesson_ids: completedLessonIds.map((r: any) => r.lesson_id),
-            enrolled_at: enrollment.created_at
+            enrolled_at: enrollment.created_at,
+            certificate_number
         });
     } catch (error: any) {
         return c.json({ message: error.message || 'Failed to check enrollment status' }, 500);
@@ -328,17 +340,10 @@ courses.post('/lessons/:lessonId/complete', authMiddleware, async (c) => {
                 ).bind(user.id, (lesson as any).course_id).first();
 
                 if (!existingCert) {
-                    // Check if template exists
-                    const template = await c.env.DB.prepare(
-                        'SELECT id FROM certificate_templates WHERE course_id = ?'
-                    ).bind((lesson as any).course_id).first();
-
-                    if (template) {
-                        certificate_number = `CERT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-                        await c.env.DB.prepare(
-                            'INSERT INTO certificates (user_id, course_id, certificate_number) VALUES (?, ?, ?)'
-                        ).bind(user.id, (lesson as any).course_id, certificate_number).run();
-                    }
+                    certificate_number = `CERT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+                    await c.env.DB.prepare(
+                        'INSERT INTO certificates (user_id, course_id, certificate_number) VALUES (?, ?, ?)'
+                    ).bind(user.id, (lesson as any).course_id, certificate_number).run();
                 } else {
                     certificate_number = (existingCert as any).certificate_number;
                 }
