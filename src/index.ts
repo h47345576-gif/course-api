@@ -38,12 +38,14 @@ import coursesRoutes from './routes/courses';
 import paymentsRoutes from './routes/payments';
 import notificationsRoutes from './routes/notifications';
 import quizzesRoutes from './routes/quizzes';
+import certificatesRoutes from './routes/certificates';
 
 app.route('/api/v1/auth', authRoutes);
 app.route('/api/v1/courses', coursesRoutes);
 app.route('/api/v1/payments', paymentsRoutes);
 app.route('/api/v1/notifications', notificationsRoutes);
 app.route('/api/v1/quizzes', quizzesRoutes);
+app.route('/api/v1/certificates', certificatesRoutes);
 
 // Error Handling
 app.onError((err, c) => {

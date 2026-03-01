@@ -318,12 +318,42 @@ courses.post('/lessons/:lessonId/complete', authMiddleware, async (c) => {
             'UPDATE enrollments SET progress = ? WHERE user_id = ? AND course_id = ?'
         ).bind(progress, user.id, (lesson as any).course_id).run();
 
+        // Auto-issue certificate if progress is 100%
+        let certificate_number = null;
+        if (progress === 100) {
+            try {
+                // Check if certificate already exists
+                const existingCert = await c.env.DB.prepare(
+                    'SELECT certificate_number FROM certificates WHERE user_id = ? AND course_id = ?'
+                ).bind(user.id, (lesson as any).course_id).first();
+
+                if (!existingCert) {
+                    // Check if template exists
+                    const template = await c.env.DB.prepare(
+                        'SELECT id FROM certificate_templates WHERE course_id = ?'
+                    ).bind((lesson as any).course_id).first();
+
+                    if (template) {
+                        certificate_number = `CERT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+                        await c.env.DB.prepare(
+                            'INSERT INTO certificates (user_id, course_id, certificate_number) VALUES (?, ?, ?)'
+                        ).bind(user.id, (lesson as any).course_id, certificate_number).run();
+                    }
+                } else {
+                    certificate_number = (existingCert as any).certificate_number;
+                }
+            } catch (certError) {
+                console.error('Auto-certificate issuance error:', certError);
+            }
+        }
+
         return c.json({
             status: 'success',
             message: 'Lesson completed',
             progress,
             completed_lessons: completedCount,
-            total_lessons: total
+            total_lessons: total,
+            certificate_number
         });
     } catch (error: any) {
         return c.json({ message: error.message || 'Failed to mark lesson as completed' }, 500);
