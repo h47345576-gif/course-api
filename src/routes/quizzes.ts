@@ -95,7 +95,7 @@ quizzes.post('/', authMiddleware, async (c) => {
             description || null,
             time_limit_minutes || 0,
             passing_score || 60,
-            max_attempts || 1
+            max_attempts || 99
         ).run();
 
         return c.json({
@@ -248,14 +248,28 @@ quizzes.post('/:quizId/submit', authMiddleware, async (c) => {
             return c.json({ message: 'Quiz not found' }, 404);
         }
 
-        // Check attempts
-        const attempts = await c.env.DB.prepare(
-            'SELECT COUNT(*) as count FROM quiz_attempts WHERE quiz_id = ? AND user_id = ?'
-        ).bind(quizId, user.id).first();
+        // Check attempts - if max_attempts > 1, enforce limit; otherwise allow unlimited retries
+        if (quiz.max_attempts > 1) {
+            const attempts = await c.env.DB.prepare(
+                'SELECT COUNT(*) as count FROM quiz_attempts WHERE quiz_id = ? AND user_id = ?'
+            ).bind(quizId, user.id).first();
 
-        if (attempts && attempts.count >= quiz.max_attempts) {
-            return c.json({ message: 'Maximum attempts reached' }, 400);
+            if (attempts && attempts.count >= quiz.max_attempts) {
+                return c.json({ message: 'Maximum attempts reached' }, 400);
+            }
         }
+
+        // Delete previous attempts so student gets fresh results
+        const oldAttempts = await c.env.DB.prepare(
+            'SELECT id FROM quiz_attempts WHERE quiz_id = ? AND user_id = ?'
+        ).bind(quizId, user.id).all();
+
+        for (const old of (oldAttempts.results || [])) {
+            await c.env.DB.prepare('DELETE FROM quiz_answers WHERE attempt_id = ?').bind(old.id).run();
+        }
+        await c.env.DB.prepare(
+            'DELETE FROM quiz_attempts WHERE quiz_id = ? AND user_id = ?'
+        ).bind(quizId, user.id).run();
 
         // Get questions
         const questions = await c.env.DB.prepare(
