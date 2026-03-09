@@ -7,6 +7,14 @@ const users = new Hono<{ Bindings: any; Variables: { user: any } }>();
 // ===== Migration Route (مؤقت - احذفه بعد التنفيذ) =====
 users.get('/migrate', async (c) => {
     try {
+        try {
+            await c.env.DB.prepare(`
+                ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'student'
+            `).run();
+        } catch (e: any) {
+            console.log('Column role might already exist:', e.message);
+        }
+
         await c.env.DB.prepare(`
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
