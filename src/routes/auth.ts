@@ -74,17 +74,16 @@ auth.post('/login', async (c) => {
         return c.json({ error: 'Unauthorized', message: 'Invalid credentials' }, 401);
     }
 
-    // Determine role (Temporary logic until DB migration)
-    let role = 'student';
-    if (user.email.includes('admin')) {
-        role = 'admin';
-    } else if (user.email.includes('teacher')) {
-        role = 'teacher';
-    }
+    // Determine role
+    let role = user.role || 'student';
 
-    // Also check if DB has role column (future proofing)
-    if (user.role) {
-        role = user.role;
+    // Fallback detection (for older users without roles in DB)
+    if (role === 'student') {
+        if (user.email.includes('admin')) {
+            role = 'admin';
+        } else if (user.email.includes('teacher')) {
+            role = 'teacher';
+        }
     }
 
     const token = await sign({ id: user.id, email: user.email, name: user.name, role }, c.env.JWT_SECRET);
