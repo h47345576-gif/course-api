@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS courses (
     can_download BOOLEAN DEFAULT 1,
     requirements TEXT,
     extra_content TEXT,
+    is_archived BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
