@@ -39,6 +39,7 @@ import paymentsRoutes from './routes/payments';
 import notificationsRoutes from './routes/notifications';
 import quizzesRoutes from './routes/quizzes';
 import certificatesRoutes from './routes/certificates';
+import usersRoutes from './routes/users';
 
 app.route('/api/v1/auth', authRoutes);
 app.route('/api/v1/courses', coursesRoutes);
@@ -46,6 +47,7 @@ app.route('/api/v1/payments', paymentsRoutes);
 app.route('/api/v1/notifications', notificationsRoutes);
 app.route('/api/v1/quizzes', quizzesRoutes);
 app.route('/api/v1/certificates', certificatesRoutes);
+app.route('/api/v1/users', usersRoutes);
 
 // Error Handling
 app.onError((err, c) => {
