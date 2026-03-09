@@ -367,7 +367,7 @@ courses.post('/lessons/:lessonId/complete', authMiddleware, async (c) => {
 
 // List all courses
 courses.get('/', async (c) => {
-    const { results } = await c.env.DB.prepare('SELECT * FROM courses ORDER BY created_at DESC').all();
+    const { results } = await c.env.DB.prepare('SELECT * FROM courses WHERE is_archived = 0 ORDER BY created_at DESC').all();
     return c.json({ results });
 });
 
